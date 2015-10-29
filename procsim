@@ -1,0 +1,178 @@
+#!/bin/bash
+
+# output lines between two line numbers
+select_lines()
+{
+
+    start=$1
+    end=$2
+    fname=$3
+
+    awk -v start=$start -v end=$end 'NR==start,NR==end' $fname
+
+} # end select_lines()
+
+# given a stdout file, find procsim snapshot lines and echo the line number, 
+# the snapshot number, and the time
+procsim_lines()
+{
+
+    fname="$1"
+
+    awk '/^procsim: snapshot [0-9][0-9]* [0-9][0-9]* /{print NR,$3,$4}' $fname
+
+    return 0
+
+} # end procsim_lines()
+
+# strip trailing slashes off a path
+strip_slashes()
+{
+
+    echo "$1" | sed 's/\/\/*$//'
+
+    return 0
+
+} # end strip_slashes()
+
+progname=`basename $0`
+
+if [ $# -eq 0 ]
+then
+    echo usage
+    exit 1
+fi
+
+if [ -z "$PROCSIMDIR" ]
+then
+    echo "$progname: no PROCSIMDIR" >&2
+    exit 1
+fi
+
+if [ ! -d "$PROCSIMDIR" ]
+then
+    echo "$progname: $PROCSIMDIR: no such directory" >&2
+    exit 1
+fi
+
+snap_dir=$PROCSIMDIR/snapshots
+
+if [ ! -d $snap_dir ]
+then
+    mkdir $snap_dir
+fi
+
+last_snap=
+next_snap=1
+while [ -d $snap_dir/$next_snap ]
+do
+    last_snap=$next_snap
+    next_snap=$(($next_snap+1))
+done
+
+command="$1"
+shift
+
+if [ $command = save ]
+then
+    if [ $# -eq 0 ]
+    then
+        echo "$progname: no source directory given" >&2
+        exit 1
+    fi
+    source_dir=`strip_slashes "$1"`
+    if [ ! -z "$last_snap" ]
+    then
+        rsync -rlpgoD $snap_dir/$last_snap/ \
+              --link-dest=../$last_snap \
+              $snap_dir/$next_snap
+    fi
+    rsync -crlpgoD --delete $source_dir/ $snap_dir/$next_snap
+    echo "procsim: snapshot $next_snap `date +%s` `date`"
+elif [ $command = restore ]
+then
+    if [ $# -ne 2 ]
+    then
+        echo "$progname: wrong number of arguments to restore"
+        exit 1
+    fi
+    snap="$1"
+    dest_dir=`strip_slashes "$2"`
+    if [ ! -d $snap_dir/$snap ]
+    then
+        echo "$progname: snapshot $snap not found" >&2
+        exit 1
+    fi
+    rsync -crlpgoD --delete $snap_dir/$snap/ $dest_dir
+elif [ $command = replay ]
+then
+    if [ x"$1" = x"-t" ]
+    then
+        shift
+        if [ $# -eq 0 ]
+        then
+            echo "$progname: no argument given to -t" >&2
+            exit 1
+        fi
+        t="$1"
+        shift
+        if ! echo "$t" | grep '^[0-9][0-9]*$' > /dev/null
+        then
+            echo "$progname: bad value given to -t" >&2
+            exit 1
+        fi
+    else
+        t=
+    fi
+    if [ $# -eq 0 ]
+    then
+        echo "$progname: no target directory given" >&2
+        exit 1
+    fi
+    target_dir=`strip_slashes "$1"`
+    if [ ! -d "$target_dir" ]
+    then
+        echo "$progname: $target_dir: not a directory"
+        exit 1
+    fi
+    stdout="$PROCSIMDIR/stdout"
+    if [ ! -f "$stdout" ]
+    then
+        echo "$progname: $stdout not found"
+        exit 1
+    fi
+    current_line=1
+    last_snap_time=
+    n_lines=`wc -l $stdout | awk '{print $1}'`
+    while read line snapshot snap_time
+    do
+        t_now=`date +%s`
+        if [ ! -z $last_snap_time ]
+        then
+            if [ ! -z $t ]
+            then
+                dt=$t
+            else
+                dt=$(($snap_time-$last_snap_time))
+            fi
+            t_continue=$(($t_now+$dt))
+            t_sleep=$(($t_continue-$t_now))
+            if [ $t_sleep -gt 0 ]
+            then
+                sleep $t_sleep
+            fi
+        fi
+        rsync -crlpgoD --delete "$snap_dir/$snapshot/" "$target_dir"
+        select_lines $current_line $(($line-1)) "$stdout"
+        current_line=$(($line+1))
+        last_snap_time=$snap_time
+    done < <( procsim_lines "$stdout" )
+    select_lines $current_line $n_lines $stdout
+else
+    echo "$progname: unknown command \"$command\"" >&2
+    exit 1
+fi
+
+exit 0
+
+# eof

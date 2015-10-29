@@ -1,0 +1,46 @@
+#!/bin/sh
+
+progname=`basename $0`
+
+if [ $# -eq 0 ]
+then
+    echo "usage: $progname <data directory>"
+    exit 1
+fi
+
+data_dir="$1"
+
+if [ ! -d "$1" ]
+then
+    echo "$progname: $data_dir: not a directory" >&2
+    exit 1
+fi
+
+echo starting $progname
+sleep 1
+
+echo 'this is file a' > "$data_dir/a"
+echo created file a
+sleep 2
+
+echo 'this is file b' > "$data_dir/b"
+echo created file b
+sleep 3
+
+rm "$data_dir/a"
+echo removed file a
+sleep 4
+
+echo 'this is file c' > "$data_dir/c"
+echo created file c
+sleep 5
+
+echo 'this is a new version of file b' > "$data_dir/b"
+echo changed file b
+sleep 6
+
+echo done $progname
+
+exit 0
+
+# eof

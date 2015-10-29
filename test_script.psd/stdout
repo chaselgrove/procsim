@@ -1,0 +1,13 @@
+starting test_script.ps
+procsim: snapshot 1 1446146820 Thu Oct 29 15:27:00 EDT 2015
+created file a
+procsim: snapshot 2 1446146822 Thu Oct 29 15:27:02 EDT 2015
+created file b
+procsim: snapshot 3 1446146825 Thu Oct 29 15:27:05 EDT 2015
+removed file a
+procsim: snapshot 4 1446146829 Thu Oct 29 15:27:09 EDT 2015
+created file c
+procsim: snapshot 5 1446146834 Thu Oct 29 15:27:14 EDT 2015
+changed file b
+procsim: snapshot 6 1446146840 Thu Oct 29 15:27:20 EDT 2015
+done test_script.ps

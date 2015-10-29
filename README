@@ -1,0 +1,53 @@
+procsim process simulator
+
+procsim was designed to help the migration of long-running pipelines to new systems.  Spawning a 24 hour pipeline that needs to be monitored and cleaned up is difficult to test when you need to wait 24 hours to do so.
+
+The ultimate goal is to be able to replay a long-running process in a shorter period of time.  The procsim script will do this:
+
+    procsim replay <target directory>
+
+where <target directory> is the location where the process-generated files will be restored.  Use the PROCSIMDIR environment variable to point to a procsim process directory (where information about the process is stored).
+
+procsim works by taking snapshots of a directory.  Set PROCSIMDIR to point to an empty directory and run:
+
+    procsim save <data directory>
+
+to take a snapshot of the source directory.  The output is:
+
+    procsim: snapshot <snapshot number> <date/time in seconds> <date/time>
+
+Restore a snapshot with:
+
+    procsim restore <snapshot number> <data directory>
+
+Files that are unchanged between snapshots are stored once and hard linked, so new snapshots do not necessarily need as much new disk space as is contained in the data directory.
+
+A test script (test_script) is included.  Run it with an empty directory as an argument:
+
+    mkdir tmp
+    ./test_script tmp
+
+Files are created, modified, and deleted, and the script takes its time.
+
+test_script.psd is a PROCSIMDIR for this script.  Set PROCSIMDIR and simulate running test_script with:
+
+    procsim replay tmp
+
+procsim's replay loop waits for the appropriate delay, then restores the next snapshot, then echos all the output since the last snapshot.  This ensures that a monitor can use the output to infer the creation of a file (e.g. when the replay echos a script's "file f created," then file f will exist).
+
+Timing can be adjusted with the -t flag:
+
+    procsim replay -t 1 tmp
+
+waits one second between steps.  Use -t 0 for no delays.
+
+A process simulation can be created by adding procsim snapshot calls in a process script and then saving the output of that script to $PROCSIMDIR/stdout.  In this case, test_script.ps was used to create test_script.psd.
+
+Caveats:
+
+    procsim has no stderr channel for replays.  Either ignore stderr or keep it with stdout.
+
+    procsim only has the granularity that you give it.  All output and timing between procsim save calls is lumped together.  In the test_script example, the final six second delay is handled in the replay before "changed file b" is output.
+
+    procsim's replay assumes that restoring a snapshot can be done immediately.
+
